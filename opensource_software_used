@@ -1,1 +1,7 @@
 Reference of the used open-source software 
+
+IOIO board software - https://github.com/ytai/ioio
+
+libstreaming - live video streaming library for android - https://github.com/fyhertz/libstreaming
+
+Google GSON - JSON serialization library - https://code.google.com/p/google-gson/

@@ -1,0 +1,6 @@
+include ':iOIOLibAndroid', ':iOIOLibAccessory', ':iOIOLibBT', ':IOIOLibs', ':iOIOLibAndroidDevice', ":FlyverCore"
+project(':iOIOLibAccessory').projectDir = new File('iOIOLibAccessory')
+project(':iOIOLibBT').projectDir = new File('iOIOLibBT')
+project(':IOIOLibs').projectDir = new File('IOIOLibs')
+project(':iOIOLibAndroidDevice').projectDir = new File('iOIOLibAndroidDevice')
+project(':FlyverCore').projectDir = new File('FlyverCore')

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="co.flyver.dataloggerlib" >
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name" >
+        <service
+            android:name="co.flyver.dataloggerlib.LoggerService"
+            android:exported="true" >
+            <uses-permission android:name="android.permission.INTERNET" />
+        </service>
+
+        <activity
+            android:name=".LoggerTestActivity"
+            android:label="@string/app_name"
+            android:screenOrientation="portrait">
+        </activity>
+
+        <activity
+            android:name=".SettingsActivity"
+            android:label="@string/action_settings"
+            android:screenOrientation="portrait">
+        </activity>
+
+        <activity
+            android:name=".LocalDataActivity"
+            android:label="@string/title_activity_data_log_local_data" >
+        </activity>
+    </application>
+
+</manifest>

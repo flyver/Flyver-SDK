@@ -1,0 +1,38 @@
+<resources>
+    <string name="title_activity_settings">Settings</string>
+
+    <!-- Strings related to Settings -->
+
+    <!-- Example General settings -->
+    <string name="pref_header_general">General</string>
+
+    <string name="pref_title_log_url">Log URL</string>
+    <string name="pref_default_log_url">http://u.ftpd.biz/logger/call/json/store/</string>
+
+    <string name="pref_title_access_token">Access Token</string>
+    <string name="pref_default_access_token">a1a635bf-b51f-4cd9-a69a-c7578792d598</string>
+
+    <string name="pref_title_log_method">Log HTTP Method</string>
+    <string-array name="pref_log_method_titles">
+        <item>GET</item>
+        <item>POST</item>
+    </string-array>
+    <string-array name="pref_log_method_values">
+        <item>GET</item>
+        <item>POST</item>
+    </string-array>
+
+    <string name="pref_title_local_filename">Filename</string>
+    <string name="pref_default_local_filename">FlyverLogFile.txt</string>
+
+    <string name="pref_title_save_internally">Save location</string>
+    <string-array name="pref_save_internally_titles">
+        <item>Internal</item>
+        <item>On SD Card</item>
+    </string-array>
+    <string-array name="pref_save_internally_values">
+        <item>true</item>
+        <item>false</item>
+    </string-array>
+
+</resources>

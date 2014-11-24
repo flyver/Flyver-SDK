@@ -1,0 +1,9 @@
+include ':app',':FlyverServer', ':IPC', ':dataloggerlib', ':iOIOLibBT', ':IOIOLibs', ':iOIOLibAndroidDevice', ':iOIOLibAndroid', ':iOIOLibAccessory', ':iOIOController', ':FlyverCore', ':libstreaming'
+project(':iOIOLibBT').projectDir = new File('IOIO/iOIOLibBT')
+project(':IOIOLibs').projectDir = new File('IOIO/IOIOLibs')
+project(':iOIOLibAndroidDevice').projectDir = new File('IOIO/iOIOLibAndroidDevice')
+project(':iOIOLibAndroid').projectDir = new File('IOIO/iOIOLibAndroid')
+project(':iOIOLibAccessory').projectDir = new File('IOIO/iOIOLibAccessory')
+project(':iOIOController').projectDir = new File('IOIO/iOIOController')
+project(':FlyverCore').projectDir = new File('FlyverCore')
+project(':FlyverServer').projectDir = new File('FlyverServer')

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">DataLogger</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_logger">Logger test</string>
+    <string name="action_loggerlocaldata">Saved events</string>
+    <string name="button_ClickMe">Log data</string>
+    <string name="label_eventtype">Event type:</string>
+    <string name="label_eventtags">Event tags:</string>
+    <string name="label_eventdata">Event data:</string>
+    <string name="editText_eventtype">SampleEventType</string>
+    <string name="editText_eventtags">Tag1, Tag2; Tag3</string>
+    <string name="editText_eventdata">Some Random Data here 123</string>
+    <string name="defaultURL">http://u.ftpd.biz/logger/call/json/store/</string>
+    <string name="defaultToken">a1a635bf-b51f-4cd9-a69a-c7578792d598</string>
+    <string name="fileLoggerName">FlyverLogFile.txt</string>
+    <string name="title_activity_data_log_local_data">DataLogger Local Data</string>
+    <string name="hello_world">Hello world!</string>
+
+</resources>
