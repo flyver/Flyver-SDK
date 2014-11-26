@@ -400,7 +400,7 @@ public class Server extends IntentService {
             case IPCKeys.COORDINATES: {
                 //TypeToken must be passed to the fromJson method to avoid type erasure problems
                 Type type = new TypeToken<JSONQuadruple<String, Float, Float, Float>>() {}.getType();
-                mJsonAction = JSONUtils.deserialize(json, type);
+                mJsonCoordinates = JSONUtils.deserialize(json, type);
                 sCurrentStatus.setAzimuth(mJsonCoordinates.getValue1());
                 sCurrentStatus.setPitch(mJsonCoordinates.getValue2());
                 sCurrentStatus.setRoll(mJsonCoordinates.getValue3());
