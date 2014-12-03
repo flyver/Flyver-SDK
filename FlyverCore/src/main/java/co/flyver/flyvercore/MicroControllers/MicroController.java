@@ -21,4 +21,6 @@ public interface MicroController {
      */
     public void loop() throws  InterruptedException, ConnectionLostException;
     // TODO: Fix the excetions
+
+    public float getBatteryVoltage();
 }

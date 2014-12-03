@@ -1,45 +1,49 @@
 package co.flyver.flyvercore.DroneTypes;
 
+import android.util.Log;
+
 /**
  * This is a Drone with configuration of Quadcopter X type of frame
  * It implements the specific control algorithm for this type of drone
  */
 public class QuadCopterX implements Drone{
     MotorsPowers motorPowers = new MotorsPowers();
+    private final String TAG = "QUADX";
 
     @Override
     public void updateSpeeds(float yawForce, float pitchForce, float rollForce, float altitudeForce) {
         // Compute the power of each motor.
-        double tempPowerFC;
-        double tempPowerFCC;
-        double tempPowerRC;
-        double tempPowerRCC;
+        double tempPowerFCW;
+        double tempPowerFCCW;
+        double tempPowerRCW;
+        double tempPowerRCCW;
 
-        tempPowerFC = altitudeForce; // Vertical "force".
-        tempPowerFCC = altitudeForce; //
-        tempPowerRC = altitudeForce; //
-        tempPowerRCC = altitudeForce; //
+        tempPowerFCW = altitudeForce; // Vertical "force".
+        tempPowerFCCW = altitudeForce; //
+        tempPowerRCW = altitudeForce; //
+        tempPowerRCCW = altitudeForce; //
 
-        tempPowerFC += pitchForce; // Pitch "force".
-        tempPowerFCC += pitchForce; //
-        tempPowerRC -= pitchForce; //
-        tempPowerRCC -= pitchForce; //
+        tempPowerFCW += pitchForce; // Pitch "force".
+        tempPowerFCCW += pitchForce; //
+        tempPowerRCW -= pitchForce; //
+        tempPowerRCCW -= pitchForce; //
 
-        tempPowerFC += rollForce; // Roll "force".
-        tempPowerFCC -= rollForce; //
-        tempPowerRC -= rollForce; //
-        tempPowerRCC += rollForce; //
+        tempPowerFCW += rollForce; // Roll "force".
+        tempPowerFCCW -= rollForce; //
+        tempPowerRCW -= rollForce; //
+        tempPowerRCCW += rollForce; //
 
-        tempPowerFC += yawForce; // Yaw "force".
-        tempPowerFCC -= yawForce; //
-        tempPowerRC += yawForce; //
-        tempPowerRCC -= yawForce; //
+        tempPowerFCW += yawForce; // Yaw "force".
+        tempPowerFCCW -= yawForce; //
+        tempPowerRCW += yawForce; //
+        tempPowerRCCW -= yawForce; //
 
         // Saturate the values
-        motorPowers.fc = motorPowers.motorSaturation(tempPowerFC);
-        motorPowers.fcc = motorPowers.motorSaturation(tempPowerFCC);
-        motorPowers.rc = motorPowers.motorSaturation(tempPowerRC);
-        motorPowers.rcc = motorPowers.motorSaturation(tempPowerRCC);
+        Log.d(TAG,String.format("Front CW: %f Front CCW: %f Rear CW: %f Rear CCW: %f \n ", tempPowerFCW, tempPowerFCCW, tempPowerRCW, tempPowerRCCW));
+        motorPowers.fc = motorPowers.motorSaturation(tempPowerFCW);
+        motorPowers.fcc = motorPowers.motorSaturation(tempPowerFCCW);
+        motorPowers.rc = motorPowers.motorSaturation(tempPowerRCW);
+        motorPowers.rcc = motorPowers.motorSaturation(tempPowerRCCW);
 
 
     }
@@ -77,7 +81,7 @@ public class QuadCopterX implements Drone{
 
         private int motorSaturation(double val) {
             if (val > MAX_MOTOR_POWER)
-                return (int) MAX_MOTOR_POWER;
+                return MAX_MOTOR_POWER;
             else if (val < 0.0)
                 return 0;
             else

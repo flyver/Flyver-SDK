@@ -1,9 +1,10 @@
-package co.flyver.IOIO.IOIOController;
+package co.flyver.flyvercore.MicroControllers;
 
+
+import android.util.Log;
 
 import co.flyver.flyvercore.DroneTypes.QuadCopterX;
 import co.flyver.flyvercore.MainControllers.MainController;
-import co.flyver.flyvercore.MicroControllers.MicroController;
 import ioio.lib.api.AnalogInput;
 import ioio.lib.api.PwmOutput;
 import ioio.lib.api.exception.ConnectionLostException;
@@ -17,6 +18,15 @@ import ioio.lib.util.BaseIOIOLooper;
  */
 public class IOIOController extends BaseIOIOLooper implements MicroController {
 
+    public interface ConnectionHooks {
+        /**
+         * This method will be called every time the board connects and reconnects
+         * @param ioioController
+         */
+        public void onConnect(IOIOController ioioController);
+        public void onDisconnect();
+    }
+
     private PwmOutput motorFC; // Front clockwise motor
     private PwmOutput motorFCC; // Front counterclockwise motor
     private PwmOutput motorRC; // Rear clockwise motor
@@ -26,6 +36,18 @@ public class IOIOController extends BaseIOIOLooper implements MicroController {
     private float[] motorPowers;
     private float batteryVoltage;
     private MainController mainController;
+    public boolean ioioref = false;
+    private ConnectionHooks connectionHooks;
+
+    public IOIOController addConnectionHooks(ConnectionHooks hooks) {
+        this.connectionHooks = hooks;
+        return this;
+    }
+
+    @Override
+    public float getBatteryVoltage() {
+        return batteryVoltage;
+    }
 
     public IOIOController(QuadCopterX quadCopterX){
         this.quadCopterX = quadCopterX;
@@ -35,13 +57,16 @@ public class IOIOController extends BaseIOIOLooper implements MicroController {
 
     @Override
     public void setup() throws ConnectionLostException {
+        ioioref = true;
         int mFrequncy = 200;
         motorFC = ioio_.openPwmOutput(34, mFrequncy);
         motorFCC = ioio_.openPwmOutput(35, mFrequncy);
         motorRC = ioio_.openPwmOutput(36, mFrequncy);
         motorRCC = ioio_.openPwmOutput(37, mFrequncy);
         batteryInput = ioio_.openAnalogInput(46);
-
+        if(connectionHooks != null) {
+            connectionHooks.onConnect(this);
+        }
     }
 
     /**
@@ -61,10 +86,8 @@ public class IOIOController extends BaseIOIOLooper implements MicroController {
             motorRC.setPulseWidth(motorPowers[2] + 1000);
             motorRCC.setPulseWidth(motorPowers[3] + 1000);
             batteryVoltage = batteryInput.getVoltage();
-
-
+//            Log.d("IOIOC", "Battery voltage: " + batteryVoltage);
             // Log.i("motors", debugText);
-
 
             // stateView.setText(motorsStateString);
             Thread.sleep(1);
@@ -82,7 +105,9 @@ public class IOIOController extends BaseIOIOLooper implements MicroController {
      */
     @Override
     public void disconnected() {
-
+        if(connectionHooks != null) {
+            connectionHooks.onDisconnect();
+        }
     }
 
     /**

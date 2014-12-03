@@ -4,8 +4,6 @@ package co.flyver.flyvercore.MainControllers;
 import android.app.Activity;
 import android.os.SystemClock;
 
-import java.util.concurrent.Callable;
-
 import co.flyver.IPC.IPCKeys;
 import co.flyver.androidrc.Server.Server;
 import co.flyver.flyvercore.DroneTypes.Drone;
@@ -17,6 +15,7 @@ import co.flyver.flyvercore.StateData.DroneState;
 import ioio.lib.spi.Log;
 
 import static co.flyver.androidrc.Server.Server.ServerCallback;
+import static co.flyver.flyvercore.StateData.Battery.BatteryCells;
 
 /**
  * The MainController is the heart of Flyver
@@ -35,7 +34,37 @@ public class MainController extends Activity {
     private static final String CONTROLLER = "CONTROLLER";
     /* END OF*/
 
+    private Activity activity;
+    private MicroController microController;
+    private Battery battery;
+    private Drone drone;
+    private float meanThrust;
+    private float yawAngleTarget;
+    private float pitchAngleTarget;
+    private float rollAngleTarget;
+    private float altitudeTarget;
+    private float batteryVoltage;
+    private float timeWithoutPcRx;
+    private float timeWithoutAdkRx;
+    private DroneState droneState;
+    private Drone.MotorPowers motorsPowers;
+    private boolean regulatorEnabled;
+    private boolean altitudeLockEnabled;
+    private PIDAngleController yawController;
+    private PIDAngleController pitchController;
+    private PIDAngleController rollController;
+    private DroneState.DroneStateData droneStateData;
+    private ControllerThread controllerThread;
+    private long previousTime;
+    private boolean zeroStateFlag = false; // Flag indicate that droneState should be zeroed
+    private int batteryPercentage = 0;
+    private BatteryStatusCallback batteryStatusCallback;
+    private static MainController instance;
     String debugText = "";
+
+    public interface BatteryStatusCallback {
+        public void onChange(int status);
+    }
 
     public float getYawAngleTarget() {
         return yawAngleTarget;
@@ -68,35 +97,16 @@ public class MainController extends Activity {
     public void setMeanThrust(float meanThrust) {
         this.meanThrust = meanThrust;
     }
-
-    private Activity activity;
-
-
-    private MicroController microController;
-    private Battery battery;
-    private Drone drone;
-    private float meanThrust;
-    private float yawAngleTarget;
-    private float pitchAngleTarget;
-    private float rollAngleTarget;
-    private float altitudeTarget;
-    private float batteryVoltage;
-    private float timeWithoutPcRx;
-    private float timeWithoutAdkRx;
-    private DroneState droneState;
-    private Drone.MotorPowers motorsPowers;
-    private boolean regulatorEnabled;
-    private boolean altitudeLockEnabled;
-    private PIDAngleController yawController;
-    private PIDAngleController pitchController;
-    private PIDAngleController rollController;
-    private DroneState.DroneStateData droneStateData;
-    private ControllerThread controllerThread;
-    private long previousTime;
-    private boolean zeroStateFlag = false; // Flag indicate that droneState should be zeroed
+    private void setBatteryStatusCallback(BatteryStatusCallback batteryStatusCallback) {
+        this.batteryStatusCallback = batteryStatusCallback;
+    }
 
     public void setMicroController(MicroController microController) {
         this.microController = microController;
+    }
+
+    public int getBatteryPercentage() {
+        return batteryPercentage;
     }
 
     public MainController(Activity activity, MicroController microController, QuadCopterX drone) {
@@ -105,7 +115,20 @@ public class MainController extends Activity {
         this.activity = activity;
         this.drone = drone;
 //        microController = activity.getMicroController();
-        battery = new Battery(microController,3);
+        battery = new Battery(microController, BatteryCells.THREE);
+        battery.setStatusChangeCb(new Battery.onStatusChanged() {
+            @Override
+            public void onChange(int status) {
+                if(status < 33) {
+                    Log.w(CONTROLLER, "Battery at critical level");
+                }
+                batteryPercentage = status;
+                Log.d(CONTROLLER, "Battery status : " + batteryPercentage + "%");
+                if (batteryStatusCallback != null) {
+                    batteryStatusCallback.onChange(status);
+                }
+            }
+        });
 
         yawController = new PIDAngleController(1f, 0.0f, 0.0f, PID_DERIV_SMOOTHING);
         pitchController = new PIDAngleController(1f, 0.0f, 0.0f, PID_DERIV_SMOOTHING);
@@ -135,7 +158,6 @@ public class MainController extends Activity {
         controllerThread.start();
 
         new Thread(new DebugThread()).start();
-
     }
 
     public void stop() {
@@ -202,13 +224,12 @@ public class MainController extends Activity {
                     rollController.setCoefficients(Server.sCurrentStatus.getPidRoll().getP(), Server.sCurrentStatus.getPidRoll().getI(), Server.sCurrentStatus.getPidRoll().getD());
                 }
             };
-
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            Log.d("INSIDE_THREAD", "Runnable created");
+//
+//            try {
+//                Thread.sleep(1000);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
             //Register callbacks to be called when the appropriate JSON is received
             Server.registerCallback(IPCKeys.THROTTLE, onValuesChange);
             Server.registerCallback(IPCKeys.YAW, onValuesChange);
@@ -310,11 +331,21 @@ public class MainController extends Activity {
 
     /**
      * Called when the communication link between the drone and the RC is lost.
-     * TODO: Break it into cases and imlement algorithms such as Return To Home
+     * TODO: Break it into cases and implement algorithms such as Return To Home
      */
     public void onConnectionLost() {
         // Emergency stop of the quadcopter.
         emergencyStop("Connection Lost");
+    }
+
+    public void onIoioConnect() {
+        Log.e(CONTROLLER, "IOIO Connection established");
+        battery.resume();
+    }
+
+    public void onIoioDisconnect() {
+        Log.e(CONTROLLER, "IOIO Connection lost");
+        battery.pause();
     }
 
     /**
@@ -359,6 +390,4 @@ public class MainController extends Activity {
             }
         }
     }
-
-
 }
