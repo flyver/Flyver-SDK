@@ -6,7 +6,7 @@ import com.google.gson.JsonSyntaxException;
 import java.lang.reflect.Type;
 
 /**
- * Created by skaarjbg on 11/4/14.
+ * Created by Petar Petrov on 11/4/14.
  */
 public class IPCContainers {
 
@@ -16,6 +16,7 @@ public class IPCContainers {
         public K key;
         public V1 value1;
         public V2 value2;
+
         public V3 value3;
 
         public V1 getValue1() {
@@ -97,45 +98,46 @@ public class IPCContainers {
         }
     }
 
-    public static class JSONUtils {
-        private static Gson mGson = new Gson();
-        private static final String TAG = "JSONIPC";
+    public static class JSONHextuple<V1, V2, V3, V4, V5, V6> {
+        public V1 value1;
+        public V2 value2;
+        public V3 value3;
+        public V4 value4;
+        public V5 value5;
+        public V6 value6;
 
-        /**
-         * Validates if a string is a valid JSON object
-         * @param json - String to be validated
-         * @return - boolean, true if the string is a valid JSON object
-         */
-        private static boolean validateJson(String json)  {
-            try {
-                mGson.fromJson(json, Object.class);
-                return true;
-            } catch (JsonSyntaxException e) {
-                return false;
-            }
+        public JSONHextuple(V1 value1, V2 value2, V3 value3, V4 value4, V5 value5, V6 value6) {
+            this.value1 = value1;
+            this.value2 = value2;
+            this.value3 = value3;
+            this.value4 = value4;
+            this.value5 = value5;
+            this.value6 = value6;
         }
 
-        private static <T> T fromJSON(String json, Type type) {
-
-            if(validateJson(json)) {
-                return mGson.fromJson(json, type);
-            } else {
-               return null;
-            }
+        public V1 getValue1() {
+            return value1;
         }
 
-        public static <T> T deserialize(String json, Type type) {
-            T jsonObj;
-            jsonObj = JSONUtils.fromJSON(json, type);
-            if(jsonObj == null) {
-                throw new NullPointerException("JSON is null");
-            }
-            return jsonObj;
+        public V2 getValue2() {
+            return value2;
         }
 
-        public static <T> String serialize(T t, Type type) {
-            return mGson.toJson(t, type);
+        public V3 getValue3() {
+            return value3;
         }
 
+        public V4 getValue4() {
+            return value4;
+        }
+
+        public V5 getValue5() {
+            return value5;
+        }
+
+        public V6 getValue6() {
+            return value6;
+        }
     }
+
 }

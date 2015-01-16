@@ -1,7 +1,5 @@
 package co.flyver.flyvercore.DroneTypes;
 
-import android.util.Log;
-
 /**
  * This is a Drone with configuration of Quadcopter X type of frame
  * It implements the specific control algorithm for this type of drone
@@ -39,12 +37,14 @@ public class QuadCopterX implements Drone{
         tempPowerRCCW -= yawForce; //
 
         // Saturate the values
-        Log.d(TAG,String.format("Front CW: %f Front CCW: %f Rear CW: %f Rear CCW: %f \n ", tempPowerFCW, tempPowerFCCW, tempPowerRCW, tempPowerRCCW));
+//        Log.d(TAG,String.format("Front CW: %f Front CCW: %f Rear CW: %f Rear CCW: %f \n ", tempPowerFCW, tempPowerFCCW, tempPowerRCW, tempPowerRCCW));
         motorPowers.fc = motorPowers.motorSaturation(tempPowerFCW);
         motorPowers.fcc = motorPowers.motorSaturation(tempPowerFCCW);
         motorPowers.rc = motorPowers.motorSaturation(tempPowerRCW);
         motorPowers.rcc = motorPowers.motorSaturation(tempPowerRCCW);
 
+//       Log.d(TAG, (Integer.toString(motorPowers.fc + 1000) + "| " + Integer.toString(motorPowers.fcc + 1000) + "| "
+//                + Integer.toString(motorPowers.rc + 1000) + "| " + Integer.toString(motorPowers.rcc + 1000)));
 
     }
     public void setToZero(){

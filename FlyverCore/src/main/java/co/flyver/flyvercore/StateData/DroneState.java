@@ -1,190 +1,168 @@
 package co.flyver.flyvercore.StateData;
 
-import android.content.Context;
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
-import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
-import android.os.Bundle;
 import android.util.Log;
 
-public class DroneState implements SensorEventListener {
+import co.flyver.flyvercore.MainControllers.MainController;
+import co.flyver.utils.flyverMQ.FlyverMQMessage;
+import co.flyver.utils.flyverMQ.FlyverMQProducer;
+import co.flyver.utils.flyverMQ.exceptions.ProducerAlreadyRegisteredException;
+import co.flyver.utils.flyverMQ.interfaces.FlyverMQCallback;
+import co.flyver.utils.flyverMQ.interfaces.FlyverMQConsumer;
+
+public class DroneState implements SensorsWrapper.RotationVectorChanged, SensorsWrapper.LocationChanged, FlyverMQConsumer, FlyverMQCallback {
 
     public static final float PI = 3.14159265359f;
     public static final float RAD_TO_DEG = 180.0f / PI;
     public static final double DEG_TO_RAD = PI / 180.0;
     public static final float ALTITUDE_SMOOTHING = 0.95f;
-    public static final double EARTH_RADIUS = 6371000; // [m].
-    public static final boolean USE_GPS = false;
     public static final String DRONE_STATE = "DRONE_STATE";
+    public static final String TOPIC = "dronestate.raw";
+
+    private DroneStateData droneStateData;
+    private float[] yawPitchRollVec = new float[3];
+    private float yawZero;
+    private float pitchZero;
+    private float rollZero;
+    private float elevationZero;
+    private float latitudeZero;
+    private float longitudeZero;
+    private float absoluteLongitude;
+    private float absoluteLatitude;
+    private float absoluteElevation;
+    private SensorsWrapper sensors;
+    private FlyverMQProducer dronestateProducer;
+
+    @Override
+    public void onRotationChanged(float[] orientationMatrix) {
+        // Make the measurements relative to the user-defined zero orientation.
+        System.arraycopy(orientationMatrix, 0, yawPitchRollVec, 0, 3);
+        droneStateData.yaw = getMainAngle(-(yawPitchRollVec[0] - yawZero) * RAD_TO_DEG);
+        droneStateData.pitch = getMainAngle(-(yawPitchRollVec[1] - pitchZero) * RAD_TO_DEG);
+
+        if (yawPitchRollVec[2] * RAD_TO_DEG < -150f) { // If the roll angle is less than -150 add 180
+            droneStateData.roll = getMainAngle((yawPitchRollVec[2] - rollZero) * RAD_TO_DEG + 180f);
+        } else if (yawPitchRollVec[2] * RAD_TO_DEG > +150f) {
+            droneStateData.roll = getMainAngle((yawPitchRollVec[2] - rollZero) * RAD_TO_DEG - 180f);
+        } else {
+            droneStateData.roll = getMainAngle((yawPitchRollVec[2] - rollZero) * RAD_TO_DEG);
+        }
+//        Log.d(DRONE_STATE, "YAW: " + droneStateData.yaw + " PITCH: " + droneStateData.pitch + " ROLL: " + droneStateData.roll);
+        droneStateData.time = System.nanoTime();
+
+    }
+
+    @Override
+    public void onLocationChanged(float xPos, float yPos, float xSpeed, float ySpeed) {
+        Log.d(DRONE_STATE, String.format("Location changed! X: %f, Y: %f SpeedX: %f, SpeedY %f", xPos, yPos, xSpeed, ySpeed));
+    }
+
+    static int count = 0;
+    @Override
+    public void dataReceived(FlyverMQMessage message) {
+        // Make the measurements relative to the user-defined zero orientation.
+        count++;
+        assert message != null;
+        String data = (String) message.data;
+        String[] nums = data.replace('[', ' ').replace(']', ' ').split(",");
+        Log.d(DRONE_STATE, String.valueOf(count).concat(" received msg ").concat(message.topic));
+
+        float[] orientationMatrix = new float[nums.length];
+        for (int i = 0; i < nums.length ; i++) {
+            orientationMatrix[i] = Float.parseFloat(nums[i]);
+        }
+        System.arraycopy(orientationMatrix, 0, yawPitchRollVec, 0, 3);
+        droneStateData.yaw = getMainAngle(-(yawPitchRollVec[0] - yawZero) * RAD_TO_DEG);
+        droneStateData.pitch = getMainAngle(-(yawPitchRollVec[1] - pitchZero) * RAD_TO_DEG);
+
+        if (yawPitchRollVec[2] * RAD_TO_DEG < -150f) { // If the roll angle is less than -150 add 180
+            droneStateData.roll = getMainAngle((yawPitchRollVec[2] - rollZero) * RAD_TO_DEG + 180f);
+        } else if (yawPitchRollVec[2] * RAD_TO_DEG > +150f) {
+            droneStateData.roll = getMainAngle((yawPitchRollVec[2] - rollZero) * RAD_TO_DEG - 180f);
+        } else {
+            droneStateData.roll = getMainAngle((yawPitchRollVec[2] - rollZero) * RAD_TO_DEG);
+        }
+//        Log.d(DRONE_STATE, "YAW: " + droneStateData.yaw + " PITCH: " + droneStateData.pitch + " ROLL: " + droneStateData.roll);
+        droneStateData.time = System.nanoTime();
+        FlyverMQMessage msg = new FlyverMQMessage.MessageBuilder().setCreationTime(1).setMessageId(2).setTtl(4).setPriority((short) 1).setTopic(TOPIC).setData(droneStateData).build();
+        dronestateProducer.addMessage(msg);
+    }
+
+    @Override
+    public void unregistered() {
+
+    }
+
+    @Override
+    public void producerRegistered(String topic) {
+
+    }
+
+    @Override
+    public void producerUnregistered(String topic) {
+
+    }
 
     public float[] getYawPitchRollVec() {
         return yawPitchRollVec;
     }
 
-    public DroneState(Context context) {
+    public DroneState(SensorsWrapper sensors) {
         droneStateData = new DroneStateData();
-        rotationMatrix = new float[9];
-        yawPitchRollVec = new float[3];
-        rotationVec = new float[3];
-
         yawZero = 0.0f;
         pitchZero = 0.0f;
         rollZero = 0.0f;
 
-        // Get the sensors manager.
-        sensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
+        this.sensors = sensors;
+        sensors.registerRotationVectorListener(this).registerLocationChangeListener(this);
 
-        // List all the sensors present on the phone.
-        /*List<Sensor> sensorsList = sensorManager.getSensorList(Sensor.TYPE_ALL);
-        String sensorsString = "List of all sensors:\n";
+        dronestateProducer = new FlyverMQProducer(TOPIC) {
 
-        for(int i=0; i<sensorsList.size(); i++)
-        {
-                Sensor sensor = sensorsList.get(i);
-                sensorsString += "### " + sensor.getName() + " ###\n"
-                                + "type: " + sensor.getType() + "\n"
-                                + "vendor: " + sensor.getVendor() + "\n"
-                                + "version: " + sensor.getVersion() + "\n"
-                                + "resolution: " + sensor.getResolution() + "\n"
-                                + "maximum range: " + sensor.getMaximumRange() + "\n"
-                                + "minimum delay: " + sensor.getMinDelay() + "\n"
-                                + "power: " + sensor.getPower() + "\n\n";
-        }
+            @Override
+            public void registered() {
 
-        Log.i("Flyver", sensorsString);*/
-
-        // Get the sensors.
-        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
-        pressureSensor = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE);
-
-        if ((rotationSensor == null) || (pressureSensor == null))
-            Log.e("Flyver", "At least one sensor is missing!");
-
-        // Get the GPS manager.
-        if (USE_GPS)
-            locationManager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
-
-        locationListener = new LocationListener() {
-            public void onLocationChanged(Location location) {
-                droneStateData.gpsElevation = (float) location.getAltitude();
-                droneStateData.gpsAccuracy = location.getAccuracy();
-                droneStateData.longitude = location.getLongitude();
-                droneStateData.latitude = location.getLatitude();
-
-                droneStateData.nSatellites = (Integer) location.getExtras().get("satellites");
-
-                Log.i("AndroCopter", "GPS: " + "altitude: " + droneStateData.gpsElevation + ", "
-                        + "accuracy: " + droneStateData.gpsAccuracy + ", "
-                        + "longitude: " + droneStateData.longitude + ", "
-                        + "latitude: " + droneStateData.latitude + ", "
-                        + "bearing: " + location.getBearing() + ", "
-                        + "speed: " + location.getSpeed() + ", "
-                        + "provider: " + location.getProvider());
-
-                // Convert longitude+latitude to x+y (using the small angles
-                // approximation: sin(x)~=x).
-                droneStateData.xPos = (float) (EARTH_RADIUS * (droneStateData.longitude - longitudeZero) * DEG_TO_RAD);
-                droneStateData.yPos = (float) (EARTH_RADIUS * (droneStateData.latitude - latitudeZero) * DEG_TO_RAD);
-
-                // Convert heading+speed to speedx+speedy.
-                droneStateData.xSpeed = location.getSpeed() * (float) Math.cos(location.getBearing());
-                droneStateData.ySpeed = location.getSpeed() * (float) Math.sin(location.getBearing());
             }
 
-            public void onStatusChanged(String provider, int status, Bundle extras) {
-                droneStateData.nSatellites = (Integer) extras.get("satellites");
-                droneStateData.gpsStatus = status;
+            @Override
+            public void unregistered() {
+
             }
 
-            public void onProviderEnabled(String provider) {
+            @Override
+            public void onPause() {
+
             }
 
-            public void onProviderDisabled(String provider) {
+            @Override
+            public void onResume() {
+
             }
         };
-
-        if (USE_GPS) {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,
-                    0, 0, locationListener);
+        MainController.getInstance().getMessageQueue().registerConsumer(this, "sensors.raw");
+        try {
+            dronestateProducer.register(false);
+        } catch (ProducerAlreadyRegisteredException e) {
+            e.printStackTrace();
         }
     }
 
-    public void resume() {
-        sensorManager.registerListener(this, rotationSensor,
-                SensorManager.SENSOR_DELAY_FASTEST);
-        sensorManager.registerListener(this, pressureSensor,
-                SensorManager.SENSOR_DELAY_FASTEST);
+    public void resumed() {
+        sensors.start();
     }
 
-
-    public void pause() {
-        // Disable the GPS.
-        if (USE_GPS)
-            locationManager.removeUpdates(locationListener);
-
+    public void paused() {
         // Disable the inertial sensors.
-        sensorManager.unregisterListener(this);
-    }
-
-    @Override
-    public final void onAccuracyChanged(Sensor sensor, int accuracy) {
-        // These sensors should not change precision.
-    }
-
-    @Override
-    public final void onSensorChanged(SensorEvent event) {
-        if (event.sensor == rotationSensor) {
-            // Get the time and the rotation vector.
-            droneStateData.time = event.timestamp;
-            System.arraycopy(event.values, 0, rotationVec, 0, 3);
-
-            // Convert the to "yaw, pitch, roll".
-            SensorManager.getRotationMatrixFromVector(rotationMatrix, rotationVec);
-            SensorManager.getOrientation(rotationMatrix, yawPitchRollVec);
-
-            // Make the measurements relative to the user-defined zero orientation.
-            droneStateData.yaw = getMainAngle(-(yawPitchRollVec[0] - yawZero) * RAD_TO_DEG);
-            droneStateData.pitch = getMainAngle(-(yawPitchRollVec[1] - pitchZero) * RAD_TO_DEG);
-
-            if(yawPitchRollVec[2] * RAD_TO_DEG < -150f ) { // If the roll angle is less than -150 add 180
-                droneStateData.roll = getMainAngle((yawPitchRollVec[2] - rollZero) * RAD_TO_DEG + 180f);
-            }
-            else if(yawPitchRollVec[2] *  RAD_TO_DEG > + 150f){
-                droneStateData.roll = getMainAngle((yawPitchRollVec[2] - rollZero) * RAD_TO_DEG - 180f);
-            }
-            else {
-                droneStateData.roll = getMainAngle((yawPitchRollVec[2] - rollZero) * RAD_TO_DEG);
-            }
-// Log.d(DRONE_STATE, "YAW: " + droneStateData.yaw + " PITCH: " + droneStateData.pitch + " ROLL: " + droneStateData.roll);
-
-            // New sensors data are ready.
-            newMeasurementsReady = true;
-
-        } /*else if (event.sensor == pressureSensor) {
-            float pressure = event.values[0];
-            float rawAltitudeUnsmoothed = SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, pressure);
-            absoluteElevation = (absoluteElevation * ALTITUDE_SMOOTHING) + (rawAltitudeUnsmoothed * (1.0f - ALTITUDE_SMOOTHING));
-            droneStateData.baroElevation = absoluteElevation - elevationZero;
-        } */
+        sensors.onPause();
     }
 
     public class DroneStateData {
-        public float yaw, pitch, roll, // [degrees].
-                baroElevation = 0, gpsElevation; // [m].
+        public float yaw, pitch, roll; // [degrees].
         public long time; // [nanoseconds].
-        public double longitude, latitude; // [degrees].
-        public float gpsAccuracy, xPos, yPos; // [m].
-        public float xSpeed, ySpeed; // [m/s].
-        public int nSatellites, gpsStatus; // [].
+
+        // TODO: Other state data could be added
+
     }
 
     public DroneStateData getState() {
-        newMeasurementsReady = false;
-
         return droneStateData;
     }
 
@@ -195,10 +173,6 @@ public class DroneState implements SensorEventListener {
         elevationZero = absoluteElevation;
         longitudeZero = absoluteLongitude;
         latitudeZero = absoluteLatitude;
-    }
-
-    public boolean newMeasurementsReady() {
-        return newMeasurementsReady;
     }
 
     // Return the smallest angle between two segments.
@@ -220,15 +194,4 @@ public class DroneState implements SensorEventListener {
 
         return zeroStates;
     }
-
-    private SensorManager sensorManager;
-    private Sensor rotationSensor, pressureSensor;
-    private DroneStateData droneStateData;
-    private float[] rotationVec, rotationMatrix, yawPitchRollVec;
-    private float yawZero, pitchZero, rollZero, elevationZero, latitudeZero,
-            longitudeZero, absoluteLongitude, absoluteLatitude,
-            absoluteElevation;
-    private boolean newMeasurementsReady;
-    private LocationManager locationManager;
-    private LocationListener locationListener;
 }

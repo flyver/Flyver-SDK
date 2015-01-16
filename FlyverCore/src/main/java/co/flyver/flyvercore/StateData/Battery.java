@@ -2,14 +2,11 @@ package co.flyver.flyvercore.StateData;
 
 import android.util.Log;
 
-import java.util.ArrayDeque;
-import java.util.LinkedList;
-import java.util.Queue;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.Semaphore;
 
 import co.flyver.flyvercore.MicroControllers.MicroController;
+import co.flyver.utils.CapacityQueue;
 
 /**
  * Stores information about the battery
@@ -17,24 +14,7 @@ import co.flyver.flyvercore.MicroControllers.MicroController;
  */
 public class Battery {
 
-    public class CapacityQueue<E> extends LinkedList<E> {
-        private int limit;
-
-        public CapacityQueue(int limit) {
-            this.limit = limit;
-        }
-
-        @Override
-        public boolean add(E e) {
-            boolean added = super.add(e);
-            while(added && size() > limit) {
-                super.remove();
-            }
-            return added;
-        }
-    }
-
-    public interface onStatusChanged {
+    public interface StatusChanged {
         public void onChange(int status);
     }
 
@@ -56,10 +36,13 @@ public class Battery {
     /* Constants */
     final float cellMaxVoltage = 4.2f;
     final float cellMinVoltage = 3.3f;
+    private final int queueCapacity = 20;
     /* End of */
 
     /* Variables */
-    private int lastStatusPercentage;
+    private int lastStatus;
+    private boolean batteryNormalized;
+    private int values;
 
     /** This is default voltage divider coefficient for 3 cell LiPo battery
      *  The coefficient is real value of 2w resistors with calculated div coefficient of 5.81
@@ -71,17 +54,24 @@ public class Battery {
 
     /* Objects and refs */
 
-    private Timer timer = new Timer();
+    private Timer timer;
     private BatteryCells batteryCells;
     MicroController microController;
-    private Queue<Float> queue = new CapacityQueue<>(15);
-    private onStatusChanged statusChangeCb;
-    private final Semaphore semaphore = new Semaphore(0);
-
+    private CapacityQueue<Float> queue = new CapacityQueue<>(queueCapacity);
+    private CapacityQueue<Integer> percentages = new CapacityQueue<>(queueCapacity);
+    private StatusChanged statusChangeCb;
+    private Runnable batteryCriticalCallback;
+    
     /* End of */
 
-    public void setStatusChangeCb(onStatusChanged statusChangeCb) {
+    public Battery setStatusChangeCb(StatusChanged statusChangeCb) {
         this.statusChangeCb = statusChangeCb;
+        return this;
+    }
+
+    public Battery setBatteryCriticalCallback(Runnable cb) {
+        this.batteryCriticalCallback = cb;
+        return this;
     }
 
     public Battery (MicroController microController, BatteryCells cells){
@@ -96,29 +86,49 @@ public class Battery {
         this.microController = microController;
         start();
     }
-    /**
-     * @return battery status in %
-     */
-    public int getBatteryStatus() {
+    public void updateBatteryStatus() {
         int batteryStatus;
         float maxVoltage = cellMaxVoltage*batteryCells.getValue()/dividerCoefficient;
         float minVoltage = cellMinVoltage*batteryCells.getValue()/dividerCoefficient;
-        float batteryVoltage = microController.getBatteryVoltage();
-        queue.add(batteryVoltage);
+        //poll IOIO for new battery voltage. Add it to a queue for further calculations
+        queue.add(microController.getBatteryVoltage());
+
+        //wait until enough values has been collected for more accurate calculations
+        values++;
+        if(values > (queueCapacity + queueCapacity / 3)) {
+            batteryNormalized = true;
+        }
+
+        if(!batteryNormalized) {
+            return;
+        }
+
+        //calculate the median of the last readings to increase accuracy
         float medianVoltage = calculateMedianVoltage();
 
-        batteryStatus = (int) (((medianVoltage - minVoltage) / (maxVoltage - minVoltage))*100f);
-        if(batteryStatus != lastStatusPercentage) {
+        percentages.add((int)(((medianVoltage - minVoltage) / (maxVoltage - minVoltage))*100f));
+        batteryStatus = calculateMedianPercentage();
+
+        if(batteryStatus != lastStatus) {
             if (statusChangeCb != null) {
                 statusChangeCb.onChange(batteryStatus);
             }
         }
-        lastStatusPercentage = batteryStatus;
-        Log.d("Battery", String.format("Total voltage: %f Voltage: %f maxVoltage: %f, minVoltage: %f percentage: %d%%", getBatteryVoltage(), medianVoltage, maxVoltage, minVoltage, batteryStatus));
-        return batteryStatus;
+
+        if(getSingleCellVoltage() < cellMinVoltage) {
+            if (batteryCriticalCallback != null) {
+                batteryCriticalCallback.run();
+            }
+        }
+        lastStatus = batteryStatus;
+//        Log.d("Battery", String.format("Total voltage: %f Single cell Voltage: %f Voltage: %f percentage: %d%%", getBatteryVoltage(), getSingleCellVoltage(), medianVoltage, batteryStatus));
     }
     public float getBatteryVoltage(){
-        return calculateMedianVoltage() * batteryCells.getValue();
+        return calculateMedianVoltage() * dividerCoefficient;
+    }
+
+    private float getSingleCellVoltage() {
+        return getBatteryVoltage() / batteryCells.getValue();
     }
     public int getBatteryCells() {
         return batteryCells.getValue();
@@ -132,8 +142,17 @@ public class Battery {
         return dividerCoefficient;
     }
 
+    public int getBatteryStatus() {
+        return lastStatus;
+    }
     public void setDividerCoefficient(float dividerCoefficient) {
         this.dividerCoefficient = dividerCoefficient;
+    }
+    public Battery setMicroController(MicroController microController) {
+        this.microController = microController;
+        pause();
+        resume();
+        return this;
     }
 
     private float calculateMedianVoltage() {
@@ -146,10 +165,22 @@ public class Battery {
         return median / iterations;
     }
 
+    private int calculateMedianPercentage() {
+        int median = 0;
+        int iterations = 0;
+        for(Integer i : percentages) {
+            median += i;
+            iterations++;
+        }
+        return median / iterations;
+    }
+
     public void pause() {
-        timer.cancel();
-        timer.purge();
-        timer = new Timer();
+        if (timer != null) {
+            timer.cancel();
+            timer.purge();
+        }
+        timer = null;
     }
 
     public void resume() {
@@ -158,12 +189,20 @@ public class Battery {
     }
 
     private void start() {
+        if (microController == null) {
+            return;
+        }
+        if(timer != null ) {
+            return;
+        }
+
+        timer = new Timer();
         //poll the IOIOController every second for battery status update
         timer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
-                getBatteryStatus();
+                updateBatteryStatus();
             }
-        }, 1, 1000);
+        }, 1, 500);
     }
 }

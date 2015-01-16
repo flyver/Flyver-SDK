@@ -1,8 +1,6 @@
 package co.flyver.flyvercore.MicroControllers;
 
 
-import android.util.Log;
-
 import co.flyver.flyvercore.DroneTypes.QuadCopterX;
 import co.flyver.flyvercore.MainControllers.MainController;
 import ioio.lib.api.AnalogInput;

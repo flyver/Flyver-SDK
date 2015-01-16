@@ -1,3 +1,20 @@
 <resources>
     <string name="app_name">FlyverCore1</string>
+    <string name="pid_preferences">PIDPreferences</string>
+
+    <string name="p">Proportional</string>
+    <string name="i">Integral</string>
+    <string name="d">Derivative</string>
+
+    <string name="pid_Y_P">proportionalY</string>
+    <string name="pid_Y_I">integralY</string>
+    <string name="pid_Y_D">derivativeY</string>
+
+    <string name="pid_P_P">proportionalP</string>
+    <string name="pid_P_I">integralP</string>
+    <string name="pid_P_D">derivativeP</string>
+
+    <string name="pid_R_P">proportionalR</string>
+    <string name="pid_R_I">integralR</string>
+    <string name="pid_R_D">derivativeR</string>
 </resources>

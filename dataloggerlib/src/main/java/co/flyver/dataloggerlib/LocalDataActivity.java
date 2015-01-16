@@ -2,6 +2,7 @@ package co.flyver.dataloggerlib;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
@@ -13,44 +14,38 @@ public class LocalDataActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        StringBuilder sb = new StringBuilder();
+        SimpleEvent se;
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_data_log_local_data);
 
         tvView = (TextView) findViewById(R.id.textView);
-        tvView.setText("laskdfjasldkfjaslkdf\n" +
-                       "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n" +
-                        "laskdfjasldkfjaslkdf\n");
+
+        try {
+            LoggerService logger = new LoggerService(this.getApplicationContext());
+            logger.LocalReadFromStart();
+
+            for (int iCount = 0; iCount < 100; iCount++) {
+                se = logger.LocalReadLogEntry();
+
+                if (se == null) {
+                    iCount = 100;
+                    continue;
+                }
+
+                sb.append("Type: " + se.EventType + "\n" +
+                        "Tags: " + se.EventTags + "\n" +
+                        "Data: " + se.EventData + "\n" +
+                        "Timestamp: " + se.EventTimeStamp + "\n");
+            }
+
+            tvView.setText(sb.toString());
+            logger.LocalGoToEnd();
+            logger.Dispose();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
     }
 
 

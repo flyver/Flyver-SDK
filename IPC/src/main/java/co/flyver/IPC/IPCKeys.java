@@ -1,7 +1,7 @@
 package co.flyver.IPC;
 
 /**
- * Created by skaarjbg on 11/4/14.
+ * Created by Petar Petrov on 11/4/14.
  */
 public class IPCKeys {
     public static final String COORDINATES = "coordinates";

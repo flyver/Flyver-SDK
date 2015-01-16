@@ -8,7 +8,6 @@ import android.util.Base64;
 import android.util.Log;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.BufferedReader;
@@ -25,12 +24,15 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import co.flyver.IPC.IPCKeys;
+import co.flyver.IPC.JSONUtils;
+import co.flyver.androidrc.Server.interfaces.ServerCallback;
 import co.flyver.dataloggerlib.LoggerService;
+import co.flyver.utils.NanoHTTPDServer;
+import fi.iki.elonen.ServerRunner;
 
 import static co.flyver.IPC.IPCContainers.JSONQuadruple;
 import static co.flyver.IPC.IPCContainers.JSONTriple;
 import static co.flyver.IPC.IPCContainers.JSONTuple;
-import static co.flyver.IPC.IPCContainers.JSONUtils;
 
 
 /**
@@ -38,203 +40,11 @@ import static co.flyver.IPC.IPCContainers.JSONUtils;
  */
 public class Server extends IntentService {
 
-    /**
-     * Interface for defining custom callbacks
-     * which are associated with keys, and are run
-     * when a JSON with the appropriate key is received
-     */
-    public interface ServerCallback {
-        public void run(String json);
-    }
-
-    /**
-     * Container for the current drone status
-     * Holds the speed/positioning of the drone and also the coefficients of the PID controllers
-     * Parameters:
-     * Roll - Orientation of the drone on the X axis - values vary between 0 and 360 deg
-     * Pitch - Orientation of the drone on the Y axis - values vary between 0 and 360 deg
-     * Yaw - Orientation of the drone on the Z axis - values vary between -180 and 180 deg
-     * Throttle - Combined speed of the drone's motors - varies between 0 and 100%
-     * Emergency - Denotes if the drone is in emergency mode - boolean
-     */
-    public class Status {
-
-        private float MAX_THROTTLE = 1023;
-        private float MAX_YAW = 180;
-        private float MIN_YAW = -180;
-
-        float mAzimuth = 0;
-        float mPitch = 0;
-        float mRoll = 0;
-        float mYaw = 0;
-        float mThrottle = 0;
-        boolean mEmergency = false;
-        PID mPidYaw = new PID();
-        PID mPidPitch = new PID();
-        PID mPidRoll = new PID();
-
-        public PID getPidRoll() {
-            return mPidRoll;
-        }
-
-        public PID getPidPitch() {
-            return mPidPitch;
-        }
-
-        public PID getPidYaw() {
-            return mPidYaw;
-        }
-
-        public class PID {
-            float mP;
-            float mI;
-            float mD;
-
-            public float getP() {
-                return mP;
-            }
-
-            public void setP(float mP) {
-                this.mP = mP;
-            }
-
-            public float getI() {
-                return mI;
-            }
-
-            public void setI(float mI) {
-                this.mI = mI;
-            }
-
-            public float getD() {
-                return mD;
-            }
-
-            public void setD(float mD) {
-                this.mD = mD;
-            }
-
-            private PID() {
-                //empty constructor
-            }
-
-            private PID(float p, float i, float d) {
-                this.mP = p;
-                this.mI = i;
-                this.mD = d;
-            }
-
-        }
-
-        public boolean isEmergency() {
-            return mEmergency;
-        }
-
-        public void setEmergency(JSONTuple JSONAction) {
-            if(JSONAction.value.equals("stop")) {
-                this.mEmergency = false;
-            } else if (JSONAction.value.equals("start")) {
-                this.mRoll = 0;
-                this.mPitch = 0;
-                this.mThrottle = 0;
-                this.mYaw = 0;
-                this.mEmergency = true;
-            }
-        }
-
-
-        private Status() {
-        }
-
-        public float getAzimuth() {
-            return mAzimuth;
-        }
-
-        public void setAzimuth(float mAzimuth) {
-            this.mAzimuth = mAzimuth;
-        }
-
-        public float getPitch() {
-            return mPitch;
-        }
-
-        public void setPitch(float mPitch) {
-            this.mPitch = mPitch;
-        }
-
-        public float getRoll() {
-            return mRoll;
-        }
-
-        public void setRoll(float mRoll) {
-            this.mRoll = mRoll * (-1);
-        }
-
-        public float getYaw() {
-            return mYaw;
-        }
-
-        /**
-         * Changes the current yaw based on steps
-         * If the yaw exceeds 180 deg, it overflows to -180 deg or lower, and vice versa
-         * @param jsonTriple - generic JSONTriple<String, String, Float>
-         */
-        public void setYaw(JSONTriple<String, String, Float> jsonTriple) {
-            float newYaw = this.mYaw + (MAX_YAW * (jsonTriple.getValue() / 100));
-            if(newYaw > MAX_YAW) {
-                newYaw *= (-1);
-                if(newYaw < MIN_YAW) {
-                    newYaw = MIN_YAW;
-                }
-                this.mYaw = 0;
-            }
-            if(jsonTriple.action.equals(IPCKeys.INCREASE)) {
-                this.mYaw = newYaw;
-            } else if(jsonTriple.action.equals(IPCKeys.DECREASE)) {
-                if(newYaw < MIN_YAW) {
-                    newYaw *= 1;
-                    if(newYaw > MAX_YAW) {
-                        newYaw = MAX_YAW;
-                    }
-                }
-                this.mYaw = newYaw;
-            }
-        }
-
-        public float getThrottle() {
-            return mThrottle;
-        }
-
-        /**
-         * Changes the throttle based on steps
-         * Steps can vary between 0 and 100, percentage based
-         * Floating point steps are allowed
-         * @param jsonTriple - generic JSONTriple<String, String, Float>
-         */
-        public void setThrottle(JSONTriple<String, String, Float> jsonTriple) {
-            float newThrottle = mThrottle;
-            if(jsonTriple.action.equals(IPCKeys.INCREASE)) {
-                newThrottle += MAX_THROTTLE * (jsonTriple.getValue() / 100);
-                if(newThrottle > MAX_THROTTLE) {
-                    this.mThrottle = MAX_THROTTLE;
-                } else {
-                    this.mThrottle = newThrottle;
-                }
-            } else if(jsonTriple.action.equals(IPCKeys.DECREASE)) {
-                newThrottle -= MAX_THROTTLE * (jsonTriple.getValue() / 100);
-                if(newThrottle < 0) {
-                    this.mThrottle = 0;
-                } else {
-                    this.mThrottle = newThrottle;
-                }
-            }
-        }
-    }
-
     private static final String SERVER = "SERVER";
-    public static Status sCurrentStatus;
-    private static boolean mInstantiated = false;
+    private static final String EV_DEBUG = "DEBUG";
+    private static final String EV_RAWDATA = "RAWDATA";
 
+    public static Status sCurrentStatus = new Status();
     Gson mGson = new Gson();
     static BufferedReader mStreamFromClient;
     static PrintWriter mStreamToClient;
@@ -249,12 +59,10 @@ public class Server extends IntentService {
     ServerSocket mServerSocket;
     Socket mConnection;
     Timer mHeartbeat = new Timer();
+    LoggerService logger;
 
     public Server() {
         super("Server");
-        if(mInstantiated) {
-            throw new IllegalStateException("Could only be instantiated once!");
-        }
     }
 
     public void setCameraProvider(CameraProvider cameraProvider) {
@@ -286,11 +94,18 @@ public class Server extends IntentService {
         mCallbacks.put(key, callback);
     }
 
+    private void initLogger() {
+        logger = new LoggerService(this.getApplicationContext());
+        logger.Start();
+        logger.LogData("EV_DEBUG", "Server", "Server initialized the Logger.");
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(SERVER, "OnStart executed");
         super.onStartCommand(intent, flags, startId);
-        mInstantiated = true;
+
+        //initLogger();
         return START_NOT_STICKY;
     }
 
@@ -301,8 +116,8 @@ public class Server extends IntentService {
      */
     protected void onHandleIntent(Intent intent) {
         try {
+            ServerRunner.run(NanoHTTPDServer.class);
             Log.d(SERVER, "Server Started");
-            sCurrentStatus = new Status();
             openSockets();
             initConnection(mConnection);
             mCameraProvider.setCallback(new Runnable() {
@@ -341,19 +156,13 @@ public class Server extends IntentService {
      */
     private void initConnection(Socket connection) throws IOException {
         Log.d(SERVER, "Streams opened");
-        //LoggerService.startLogData(this, "http://u.ftpd.biz/logger/call/json/store/", "POST", "a1a635bf-b51f-4cd9-a69a-c7578792d598", "DEBUG", SERVER, "Streams opened");
-        LoggerService logger = new LoggerService(this.getApplicationContext());
-        logger.Start();
-        logger.LogData("DEBUG111", SERVER, "Streams opened");
-        logger.Stop();
+
+        //logger.LogData(EV_DEBUG, SERVER, "Streams opened");
 
         mStreamFromClient = new BufferedReader(new InputStreamReader(connection.getInputStream()));
         mStreamToClient = new PrintWriter(connection.getOutputStream(), true);
-//        if(mCameraProvider instanceof VideoStreamProvider) {
-//            mCameraProvider.associateSocket(connection);
-//            mCameraProvider.init();
-//        }
         mCameraProvider.init();
+        sCurrentStatus.setEmergency(new JSONTuple<>("emergency", "stop"));
         //initialize a heartbeat to the client
         mHeartbeat.scheduleAtFixedRate(new TimerTask() {
             @Override
@@ -363,11 +172,11 @@ public class Server extends IntentService {
                         String.valueOf(currentTime / 1000));
                 Type type = new TypeToken<JSONTuple<String, String>>() {}.getType();
                 String json = mGson.toJson(jsonTuple, type);
-                Log.d(SERVER, "Heartbeat");
                 mStreamToClient.println(json);
                 mStreamToClient.flush();
             }
         }, 1, 1000);
+        onClientConnected();
     }
 
     /**
@@ -386,7 +195,7 @@ public class Server extends IntentService {
         //returns the next string encountered after "key" in the JSON
         Pattern mPattern = Pattern.compile("\\{.+(?=key)\\w+\":(\"\\w+\")\\}?.+\\}?$");
         Matcher matcher = mPattern.matcher(json);
-        if(validateJson(json) && matcher.matches()) {
+        if(JSONUtils.validateJson(json) && matcher.matches()) {
             mKey = matcher.group(1);
         } else {
             Log.e(SERVER, "Invalid JSON!");
@@ -405,8 +214,6 @@ public class Server extends IntentService {
                 sCurrentStatus.setPitch(mJsonCoordinates.getValue2());
                 sCurrentStatus.setRoll(mJsonCoordinates.getValue3());
                 fireCallbacks(mKey, json);
-                mStreamToClient.println("Current coordinates are: Pitch:" + sCurrentStatus.getPitch() + " Roll: " + sCurrentStatus.getRoll());
-                mStreamToClient.flush();
             }
             break;
             case IPCKeys.YAW: {
@@ -414,8 +221,6 @@ public class Server extends IntentService {
                 mJsonAction = JSONUtils.deserialize(json, type);
                 sCurrentStatus.setYaw(mJsonAction);
                 fireCallbacks(mKey, json);
-                mStreamToClient.println("Current Yaw is: " + sCurrentStatus.getYaw());
-                mStreamToClient.flush();
             }
             break;
             case IPCKeys.THROTTLE: {
@@ -423,8 +228,6 @@ public class Server extends IntentService {
                 mJsonAction = JSONUtils.deserialize(json, type);
                 sCurrentStatus.setThrottle(mJsonAction);
                 fireCallbacks(mKey, json);
-                mStreamToClient.println("Current Throttle is: " + sCurrentStatus.getThrottle());
-                mStreamToClient.flush();
             }
             break;
             case IPCKeys.EMERGENCY: {
@@ -443,8 +246,6 @@ public class Server extends IntentService {
                 sCurrentStatus.mPidYaw.setI(mJsonPid.getValue2());
                 sCurrentStatus.mPidYaw.setD(mJsonPid.getValue3());
                 fireCallbacks(mKey, json);
-                mStreamToClient.println("PID Yaw: Proportional:" + sCurrentStatus.mPidYaw.getP() + " Integral: " + sCurrentStatus.mPidYaw.getI() + " Derivative: " + sCurrentStatus.mPidYaw.getD());
-                mStreamToClient.flush();
             }
             break;
             case IPCKeys.PIDPITCH: {
@@ -454,8 +255,6 @@ public class Server extends IntentService {
                 sCurrentStatus.mPidPitch.setI(mJsonPid.getValue2());
                 sCurrentStatus.mPidPitch.setD(mJsonPid.getValue3());
                 fireCallbacks(mKey, json);
-                mStreamToClient.println("PID Yaw: Proportional:" + sCurrentStatus.mPidPitch.getP() + " Integral: " + sCurrentStatus.mPidPitch.getI() + " Derivative: " + sCurrentStatus.mPidPitch.getD());
-                mStreamToClient.flush();
             }
             break;
             case IPCKeys.PIDROLL: {
@@ -465,8 +264,6 @@ public class Server extends IntentService {
                 sCurrentStatus.mPidRoll.setI(mJsonPid.getValue2());
                 sCurrentStatus.mPidRoll.setD(mJsonPid.getValue3());
                 fireCallbacks(mKey, json);
-                mStreamToClient.println("PID Yaw: Proportional:" + sCurrentStatus.mPidRoll.getP() + " Integral: " + sCurrentStatus.mPidRoll.getI() + " Derivative: " + sCurrentStatus.mPidRoll.getD());
-                mStreamToClient.flush();
             }
             break;
             case IPCKeys.PICTURE: {
@@ -501,26 +298,12 @@ public class Server extends IntentService {
             mHeartbeat.cancel();
             mHeartbeat.purge();
             mHeartbeat = new Timer();
+            sCurrentStatus.setEmergency(new JSONTuple<>("emergency", "start"));
             mConnection = mServerSocket.accept();
             initConnection(mConnection);
             loop();
         }
         return mJson;
-    }
-
-    /**
-     * Validates if a string is a valid JSON object
-     * @param json - String to be validated
-     * @return - boolean, true if the string is a valid JSON object
-     */
-    private boolean validateJson(String json)  {
-        try {
-            mGson.fromJson(json, Object.class);
-            return true;
-        } catch (JsonSyntaxException e) {
-            Log.d(SERVER, "Invalid JSON:" + json);
-            return false;
-        }
     }
 
     /**
@@ -553,13 +336,35 @@ public class Server extends IntentService {
      * @return - true, if successful, false otherwise
      */
     public static boolean sendMsgToClient(String msg) {
-        if(msg != null && !msg.isEmpty()) {
+        if(msg != null && !msg.isEmpty() && mStreamToClient != null) {
+            Log.d(SERVER, "Sent to client: " + msg);
             mStreamToClient.println(msg);
             mStreamToClient.flush();
             return true;
         } else {
             return false;
         }
+    }
+
+    private void onClientConnected() {
+
+        String json;
+        Type type = new TypeToken<JSONQuadruple<String, Float, Float, Float>>() {}.getType();
+
+        mJsonPid = new JSONQuadruple<>("pidyaw", sCurrentStatus.getPidYaw().getP(), sCurrentStatus.getPidYaw().getI(), sCurrentStatus.getPidYaw().getD());
+        json = mGson.toJson(mJsonPid, type);
+        mStreamToClient.println(json);
+        mStreamToClient.flush();
+
+        mJsonPid = new JSONQuadruple<>("pidpitch", sCurrentStatus.getPidPitch().getP(), sCurrentStatus.getPidPitch().getI(), sCurrentStatus.getPidPitch().getD());
+        json = mGson.toJson(mJsonPid, type);
+        mStreamToClient.println(json);
+        mStreamToClient.flush();
+
+        mJsonPid = new JSONQuadruple<>("pidroll", sCurrentStatus.getPidRoll().getP(), sCurrentStatus.getPidRoll().getI(), sCurrentStatus.getPidRoll().getD());
+        json = mGson.toJson(mJsonPid, type);
+        mStreamToClient.println(json);
+        mStreamToClient.flush();
     }
 
     /**
@@ -576,7 +381,7 @@ public class Server extends IntentService {
                 break;
             }
             mKey = deserialize(mJson);
-            fireCallbacks(mKey, mJson);
+//            fireCallbacks(mKey, mJson);
         }
     }
 }

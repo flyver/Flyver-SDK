@@ -5,7 +5,6 @@ android {
     buildToolsVersion '20.0.0'
 
     defaultConfig {
-        applicationId "co.flyver.androidrc.Server"
         minSdkVersion 17
         targetSdkVersion 20
         versionCode 1
@@ -13,8 +12,6 @@ android {
     }
     buildTypes {
         release {
-            runProguard false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
     compileOptions {

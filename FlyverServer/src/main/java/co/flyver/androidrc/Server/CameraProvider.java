@@ -14,7 +14,7 @@ import java.net.Socket;
 import java.util.Arrays;
 
 /**
- * Created by flyver on 10/24/14.
+ * Created by Petar Petrov on 10/24/14.
  */
 public class CameraProvider extends SurfaceView implements SurfaceHolder.Callback {
     private final String CAMERA = "CAMERA";
@@ -95,8 +95,28 @@ public class CameraProvider extends SurfaceView implements SurfaceHolder.Callbac
 
     public void snapIt(){
         if(mReady) {
-            Log.d(CAMERA, "Pic taken");
             mCamera.takePicture(null, null, capturedIt);
+            Log.d(CAMERA, "Pic taken");
+            mReady = false;
+        }
+    }
+
+    public void snapIt(Camera camera){
+        if(mReady) {
+            if(camera != null) {
+                mSurfaceHolder.addCallback(this);
+                try {
+                    camera.setPreviewDisplay(mSurfaceHolder);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                camera.setDisplayOrientation(90);
+                camera.startPreview();
+            } else {
+                return;
+            }
+//            camera.takePicture(null, null, capturedIt);
+            Log.d(CAMERA, "Pic taken");
             mReady = false;
         }
     }

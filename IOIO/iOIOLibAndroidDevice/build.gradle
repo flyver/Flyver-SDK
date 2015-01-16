@@ -5,13 +5,10 @@ android {
     buildToolsVersion "19.1.0"
 
     defaultConfig {
-        applicationId "ioio.lib.android.device"
     }
 
     buildTypes {
         release {
-            runProguard false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
         }
     }
 }

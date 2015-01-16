@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Proportional pitch -->
+    <Preference
+        android:title="@string/p"
+        android:key="@string/pid_P_P"/>
+
+    <!-- Integral pitch -->
+    <Preference
+        android:title="@string/i"
+        android:key="@string/pid_P_I"/>
+
+    <!-- Derivative pitch -->
+    <Preference
+        android:title="@string/d"
+        android:key="@string/pid_P_D"/>
+
+    <!-- Proportional yaw -->
+    <Preference
+        android:title="@string/p"
+        android:key="@string/pid_Y_P"/>
+
+    <!-- Integral yaw -->
+    <Preference
+        android:title="@string/p"
+        android:key="@string/pid_Y_I"/>
+
+    <!-- Derivative yaw -->
+    <Preference
+        android:title="@string/p"
+        android:key="@string/pid_Y_D"/>
+
+    <!-- Proportional roll -->
+    <Preference
+        android:title="@string/p"
+        android:key="@string/pid_R_P"/>
+
+    <!-- Integral roll -->
+    <Preference
+        android:title="@string/p"
+        android:key="@string/pid_R_I"/>
+
+    <!-- Derivative roll -->
+    <Preference
+        android:title="@string/p"
+        android:key="@string/pid_R_D"/>
+
+</PreferenceScreen>
